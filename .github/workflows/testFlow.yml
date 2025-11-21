@@ -67,6 +67,7 @@ jobs:
             echo $JSON_OUTPUT
             echo "matrix=$JSON_OUTPUT" >> $GITHUB_OUTPUT
             echo "After Last Line"
+            exit 1
 
 
 
