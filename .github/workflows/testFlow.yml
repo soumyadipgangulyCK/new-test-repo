@@ -1,0 +1,73 @@
+name: Test Workflow
+on: 
+  pull_request:
+
+jobs:
+
+  # Job 1: Dynamically generate the list of fields to remove
+  
+  generate-field-list:
+    # NOTE:
+    # - This is limited to pull_request* events and would raise an error for other events.
+    # - A maximum of 3000 files can be returned.
+    # - For more flexibility and no limitations see "Using local .git directory" above.
+
+    runs-on: ubuntu-latest  # windows-latest || macos-latest
+    outputs:
+
+      # The output 'fields' will be a JSON array (e.g., '["Field1", "Field2"]')
+
+      fields: ${{ steps.set-matrix.outputs.matrix }}
+      
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
+
+      - name: List all changed files
+        id:  set-matrix
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+
+        run: |
+            matrix=()
+            echo "Inside filtered files"
+            IFS=' ' read -r -a files_array <<< "$ALL_CHANGED_FILES"
+           
+            for file in "${files_array[@]}"; do
+             echo $file
+             if [[ "$file" == *"/fields/"* ]]; then
+                # Extract the basename (Active__c.field-meta.xml)
+                filename=$(basename "$file")
+                
+                # Remove the extension (.field-meta.xml)
+                # This uses shell parameter expansion to remove the suffix
+                field_name="${filename%.field-meta.xml}"
+                # Remove everything after /fields/
+                path_before_fields="${file%/fields/*}" 
+                
+                # Extract the last component after the last slash
+                object_name=$(basename "$path_before_fields")
+                # 4. Concatenate with a dot
+                object_field_name="${object_name}.${field_name}"
+                echo "$object_field_name"
+                
+                # Add the combined name to our results array
+                matrix+=("$object_field_name")
+                
+             fi
+             done
+            echo "Completed filtered files"
+             # Convert array to a proper JSON array using jq for safety and robustness
+            JSON_OUTPUT=$(printf '%s\n' "${matrix[@]}" | jq -cR . | jq -cs .)
+            echo "JSON Output Done"
+            echo $JSON_OUTPUT
+            echo "matrix=$JSON_OUTPUT" >> $GITHUB_OUTPUT
+            echo "After Last Line"
+            exit 1
+
+
+
